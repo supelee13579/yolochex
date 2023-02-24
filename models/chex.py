@@ -4,13 +4,31 @@ import time
 from argparse import ArgumentParser
 import numpy as np
 import sys
-import torch.nn as nn
 
+import torch
+import torch.nn as nn
 
 from copy import deepcopy
 from math import cos, pi
 
 
+def generate_mean_std(opt):
+    mean_val = [0.485, 0.456, 0.406]
+    std_val = [0.229, 0.224, 0.225]
+    
+    mean = torch.tensor(mean_val).cuda()
+    std = torch.tensor(std_val).cuda()
+
+    view = [1, len(mean_val), 1, 1]
+  
+    mean = mean.view(*view)
+    std = std.view(*view)
+
+    if opt.amp:
+      mean = mean.half()
+      std = std.half()
+
+    return mean, std
 
 def L1_norm(layer):
     weight_copy = layer.weight.data.abs().clone().cpu().numpy()
@@ -106,7 +124,7 @@ def SI_pruning(model, data_loader, mean, std):
     layer_id = 1
     score = []
     rank = []
-    for m in model():
+    for m in model:
         if isinstance(m, nn.Conv2d):
             if layer_id in l1 + l2 + skip:
                 score.append(full_score[layer_id-1])
@@ -134,7 +152,9 @@ def get_layer_ratio (model, sparsity):
     bn = torch.zeros(total)
     index = 0
     bn_count = 1
-    for m in model():
+    print(total)
+    print('------------------------------------------')
+    for m in model:
         if isinstance(m, nn.BatchNorm2d):
             if bn_count in l1 + l2 + skip:
                 size = m.weight.data.shape[0]
@@ -145,10 +165,13 @@ def get_layer_ratio (model, sparsity):
             bn_count += 1
     y, i = torch.sort(bn)
     thre_index = int(total * sparsity)
+    
+    print(thre_index)
+
     thre = y[thre_index]
     layer_ratio = []
     bn_count = 1
-    for m in model():
+    for m in model:
         if isinstance(m, nn.BatchNorm2d):
             if bn_count in l1 + l2 + skip:
                 weight_copy = m.weight.data.abs().clone()
@@ -168,7 +191,7 @@ def regrow_allocation(model, delta_sparsity, layer_ratio_down):
     bn_count = 1
     idx = 0
     layer_ratio = []
-    for m in model():
+    for m in model:
         if isinstance(m, nn.BatchNorm2d):
             out_channel = m.weight.data.shape[0]
             if bn_count in l1 + l2 + skip:
@@ -185,12 +208,10 @@ def regrow_allocation(model, delta_sparsity, layer_ratio_down):
     return layer_ratio
 
 def init_mask(model, ratio):
-    model = model.feature_extractor
-    # D = Darknet()
-    # D.forward(x)
-    print(model)
-    print("\n\n")
     
+    model = model.feature_extractor   
+    # print(model)
+
     prev_model = deepcopy(model)
     l1 = [2,6,9, 12,16,19,22, 25,29,32,35,38,41, 44,48,51]
     l2 = (np.asarray(l1)+1).tolist()
@@ -199,19 +220,22 @@ def init_mask(model, ratio):
     layer_id = 1
     cfg_mask = []
     for m in model:
-        if isinstance(m, nn.Conv2d):
-            out_channels = m.weight.data.shape[0]
-            print(out_channels,sep='\n')
-            if layer_id in l1 + l2 + skip:
-                num_keep = int(out_channels * (1 - ratio))
-                rank = np.argsort(L1_norm(m))
-                arg_max_rev = rank[::-1][:num_keep]
-                mask = torch.zeros(out_channels)
-                mask[arg_max_rev.tolist()] = 1
-                cfg_mask.append(mask)
+        if str(m) == 'WeightedFeatureFusion()' or 'FeatureConcat()':
+            continue
+        for m_ in m:
+            if isinstance(m_, nn.Conv2d):
+                out_channels = m_.weight.data.shape[0]
+                print(out_channels,sep='\n')               
+                if layer_id in l1 + l2 + skip:
+                    num_keep = int(out_channels * (1 - ratio))
+                    rank = np.argsort(L1_norm(m_))
+                    arg_max_rev = rank[::-1][:num_keep]
+                    mask = torch.zeros(out_channels)
+                    mask[arg_max_rev.tolist()] = 1
+                    cfg_mask.append(mask)
+                    layer_id += 1
+                    continue
                 layer_id += 1
-                continue
-            layer_id += 1
     return cfg_mask, prev_model
 
 def update_mask(model, layer_ratio_up, layer_ratio_down, old_model, Rank_):
@@ -223,7 +247,7 @@ def update_mask(model, layer_ratio_up, layer_ratio_down, old_model, Rank_):
     layer_id = 1
     idx = 0
     cfg_mask = []
-    for [m, m0] in zip(model(), old_model()):
+    for [m, m0] in zip(model, old_model):
         if isinstance(m, nn.Conv2d):
             out_channels = m.weight.data.shape[0]
             if layer_id in l1:
@@ -316,57 +340,60 @@ def apply_mask(model, cfg_mask):
     skip = [5,15,28,47]
     layer_id_in_cfg = 0
     conv_count = 1
-    for m in model():
-        if isinstance(m, nn.Conv2d):
-            if conv_count in l1:
-                mask = cfg_mask[layer_id_in_cfg].float().cuda()
-                mask = mask.view(m.weight.data.shape[0],1,1,1)
-                m.weight.data.mul_(mask)
-                layer_id_in_cfg += 1
+    for m in model: #Difference model() with model
+        if str(m) == 'WeightedFeatureFusion()' or 'FeatureConcat()':
+            continue
+        for m_ in m:
+            if isinstance(m_, nn.Conv2d):
+                if conv_count in l1:
+                    mask = cfg_mask[layer_id_in_cfg].float().cuda()
+                    mask = mask.view(m_.weight.data.shape[0],1,1,1)
+                    m_.weight.data.mul_(mask)
+                    layer_id_in_cfg += 1
+                    conv_count += 1
+                    continue
+                if conv_count in l2:
+                    mask = cfg_mask[layer_id_in_cfg].float().cuda()
+                    mask = mask.view(m_.weight.data.shape[0],1,1,1)
+                    m_.weight.data.mul_(mask)
+                    prev_mask = cfg_mask[layer_id_in_cfg-1].float().cuda()
+                    prev_mask = prev_mask.view(1,m.weight.data.shape[1],1,1)
+                    m_.weight.data.mul_(prev_mask)
+                    layer_id_in_cfg += 1
+                    conv_count += 1
+                    continue
+                if conv_count in l3:
+                    prev_mask = cfg_mask[layer_id_in_cfg-1].float().cuda()
+                    prev_mask = prev_mask.view(1,m_.weight.data.shape[1],1,1)
+                    m_.weight.data.mul_(prev_mask)
+                    conv_count += 1
+                    continue
+                if conv_count in skip:
+                    mask = cfg_mask[layer_id_in_cfg].float().cuda()
+                    mask = mask.view(m_.weight.data.shape[0],1,1,1)
+                    m_.weight.data.mul_(mask)
+                    layer_id_in_cfg += 1
+                    conv_count += 1
+                    continue
                 conv_count += 1
-                continue
-            if conv_count in l2:
-                mask = cfg_mask[layer_id_in_cfg].float().cuda()
-                mask = mask.view(m.weight.data.shape[0],1,1,1)
-                m.weight.data.mul_(mask)
-                prev_mask = cfg_mask[layer_id_in_cfg-1].float().cuda()
-                prev_mask = prev_mask.view(1,m.weight.data.shape[1],1,1)
-                m.weight.data.mul_(prev_mask)
-                layer_id_in_cfg += 1
-                conv_count += 1
-                continue
-            if conv_count in l3:
-                prev_mask = cfg_mask[layer_id_in_cfg-1].float().cuda()
-                prev_mask = prev_mask.view(1,m.weight.data.shape[1],1,1)
-                m.weight.data.mul_(prev_mask)
-                conv_count += 1
-                continue
-            if conv_count in skip:
-                mask = cfg_mask[layer_id_in_cfg].float().cuda()
-                mask = mask.view(m.weight.data.shape[0],1,1,1)
-                m.weight.data.mul_(mask)
-                layer_id_in_cfg += 1
-                conv_count += 1
-                continue
-            conv_count += 1
-        elif isinstance(m, nn.BatchNorm2d):
-            if conv_count in l2:
-                mask = cfg_mask[layer_id_in_cfg-1].float().cuda()
-                m.weight.data.mul_(mask)
-                m.bias.data.mul_(mask)
-                continue
-            if conv_count in l3:
-                mask = cfg_mask[layer_id_in_cfg-1].float().cuda()
-                m.weight.data.mul_(mask)
-                m.bias.data.mul_(mask)
-                continue
-            if conv_count-1 in skip:
-                mask = cfg_mask[layer_id_in_cfg-1].float().cuda()
-                m.weight.data.mul_(mask)
-                m.bias.data.mul_(mask)
-                continue
+            elif isinstance(m_, nn.BatchNorm2d):
+                if conv_count in l2:
+                    mask = cfg_mask[layer_id_in_cfg-1].float().cuda()
+                    m_.weight.data.mul_(mask)
+                    m_.bias.data.mul_(mask)
+                    continue
+                if conv_count in l3:
+                    mask = cfg_mask[layer_id_in_cfg-1].float().cuda()
+                    m_.weight.data.mul_(mask)
+                    m_.bias.data.mul_(mask)
+                    continue
+                if conv_count-1 in skip:
+                    mask = cfg_mask[layer_id_in_cfg-1].float().cuda()
+                    m_.weight.data.mul_(mask)
+                    m_.bias.data.mul_(mask)
+                    continue
 
-def detect_channel_zero (model):
+def detect_channel_zero(model):
     model = model.feature_extractor
     l1 = [2,6,9, 12,16,19,22, 25,29,32,35,38,41, 44,48,51]
     l2 = (np.asarray(l1)+1).tolist()
@@ -375,17 +402,20 @@ def detect_channel_zero (model):
     total_zero = 0
     total_c = 0
     conv_count = 1
-    for m in model():
-        if isinstance(m, nn.Conv2d):
-            if conv_count in l1 + l2 + skip:
-                weight_copy = m.weight.data.abs().clone().cpu().numpy()
-                norm = np.sum(weight_copy, axis=(1,2,3))
-                total_zero += len(np.where(norm == 0)[0])
-                total_c += m.weight.data.shape[0]
+    for m in model:
+        if str(m) == 'WeightedFeatureFusion()' or 'FeatureConcat()':
+            continue
+        for m_ in m:
+            if isinstance(m, nn.Conv2d):
+                if conv_count in l1 + l2 + skip:
+                    weight_copy = m_.weight.data.abs().clone().cpu().numpy()
+                    norm = np.sum(weight_copy, axis=(1,2,3))
+                    total_zero += len(np.where(norm == 0)[0])
+                    total_c += m_.weight.data.shape[0]
+                    conv_count += 1
+                    continue
                 conv_count += 1
-                continue
-            conv_count += 1
-    return total_zero / total_c  
+        return total_zero / total_c  
 
 
 def make_parser():

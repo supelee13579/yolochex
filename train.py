@@ -8,12 +8,15 @@ from pathlib import Path
 from warnings import warn
 
 import numpy as np
+import torch
 import torch.distributed as dist
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import torch.optim.lr_scheduler as lr_scheduler
 import torch.utils.data
+from torchsummary import summary
+
 import yaml
 from torch.cuda import amp
 from torch.nn.parallel import DistributedDataParallel as DDP
@@ -94,8 +97,10 @@ def train(hyp, opt, device, tb_writer=None, wandb=None):
         print('Transferred %g/%g items from %s' % (len(state_dict), len(model.state_dict()), weights))  # report
     else:
         model = Darknet(opt.cfg).to(device) # create
-    print(model)
-    print(model.feature_extractor)
+    
+    # print(model.feature_extractor)
+    
+    
     # Optimizer
     nbs = 64  # nominal batch size
     accumulate = max(round(nbs / total_batch_size), 1)  # accumulate loss before optimizing
@@ -241,29 +246,6 @@ def train(hyp, opt, device, tb_writer=None, wandb=None):
     
     torch.save(model, wdir / 'init.pt')
 
-    
-
-    # CHEX 
-    def generate_mean_std(opt):
-        mean_val = [0.485, 0.456, 0.406]
-        std_val = [0.229, 0.224, 0.225]
-
-        mean = torch.tensor(mean_val).cuda()
-        std = torch.tensor(std_val).cuda()
-
-        view = [1, len(mean_val), 1, 1]
-
-        mean = mean.view(*view)
-        std = std.view(*view)
-
-        if opt.amp:
-           mean = mean.half()
-           std = std.half()
-
-        return mean, std
-        
-    mean, std = generate_mean_std(opt)
-    
     # initialize mask
     cfg_mask = None
     
@@ -274,7 +256,7 @@ def train(hyp, opt, device, tb_writer=None, wandb=None):
     
     
     for epoch in range(start_epoch, epochs):  # epoch ------------------------------------------------------------------
-        
+        summary(model, (3, 640, 640)) 
         # update mask
         if opt.grow_prune:
             print("GROWN PRUNING WORKiNG")
