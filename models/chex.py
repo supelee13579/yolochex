@@ -7,6 +7,7 @@ import sys
 
 import torch
 import torch.nn as nn
+import torch.functional as F
 
 from copy import deepcopy
 from math import cos, pi
@@ -125,13 +126,16 @@ def SI_pruning(model, data_loader, mean, std):
     score = []
     rank = []
     for m in model:
-        if isinstance(m, nn.Conv2d):
-            if layer_id in l1 + l2 + skip:
-                score.append(full_score[layer_id-1])
-                rank.append(full_rank[layer_id-1])
+        if str(m) == 'FeatureConcat()' or 'FeatureConcat_l()':
+            continue
+        for m_ in m:
+            if isinstance(m, nn.Conv2d):
+                if layer_id in l1 + l2 + skip:
+                    score.append(full_score[layer_id-1])
+                    rank.append(full_rank[layer_id-1])
+                    layer_id += 1
+                    continue
                 layer_id += 1
-                continue
-            layer_id += 1
     return score, rank
 
 def get_layer_ratio (model, sparsity):
@@ -143,43 +147,55 @@ def get_layer_ratio (model, sparsity):
     total = 0
     bn_count = 1
     for m in model:
-        if isinstance(m, nn.BatchNorm2d):
-            if bn_count in l1 + l2 + skip:
-                total += m.weight.data.shape[0]
+        if str(m) == 'FeatureConcat()' or 'FeatureConcat_l()':
+            continue
+        print(m, bn_count, total)
+        for m_ in m:
+            if isinstance(m_, nn.BatchNorm2d):
+                print('^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^')
+                if bn_count in l1 + l2 + skip:
+                    print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
+                    total += m_.weight.data.shape[0]
+                    print('*************************************************')
+                    bn_count += 1
+                    continue
                 bn_count += 1
-                continue
-            bn_count += 1
-    bn = torch.zeros(total)
-    index = 0
-    bn_count = 1
-    print(total)
-    print('------------------------------------------')
+        bn = torch.zeros(total)
+        index = 0
+        bn_count = 1
+        print('------------------------------------------')
     for m in model:
-        if isinstance(m, nn.BatchNorm2d):
-            if bn_count in l1 + l2 + skip:
-                size = m.weight.data.shape[0]
-                bn[index:(index+size)] = m.weight.data.abs().clone()
-                index += size
+        if str(m) == 'FeatureConcat()' or 'FeatureConcat_l()':
+            continue
+        for m_ in m:
+            if isinstance(m_, nn.BatchNorm2d):
+                if bn_count in l1 + l2 + skip:
+                    size = m_.weight.data.shape[0]
+                    bn[index:(index+size)] = m_.weight.data.abs().clone()
+                    index += size
+                    bn_count += 1
+                    continue
                 bn_count += 1
-                continue
-            bn_count += 1
-    y, i = torch.sort(bn)
-    thre_index = int(total * sparsity)
+        y, i = torch.sort(bn)
+        thre_index = int(total * sparsity)
     
-    print(thre_index)
+        print(thre_index)
 
-    thre = y[thre_index]
-    layer_ratio = []
-    bn_count = 1
+        thre = y[thre_index]
+        layer_ratio = []
+        bn_count = 1
     for m in model:
-        if isinstance(m, nn.BatchNorm2d):
-            if bn_count in l1 + l2 + skip:
-                weight_copy = m.weight.data.abs().clone()
-                mask = weight_copy.gt(thre).float().cuda()
-                layer_ratio.append((mask.shape[0] - torch.sum(mask).item()) / mask.shape[0])
+        if str(m) == 'FeatureConcat()' or 'FeatureConcat_l()':
+            continue
+        for m_ in m:
+            if isinstance(m_, nn.BatchNorm2d):
+                if bn_count in l1 + l2 + skip:
+                    weight_copy = m_.weight.data.abs().clone()
+                    mask = weight_copy.gt(thre).float().cuda()
+                    layer_ratio.append((mask.shape[0] - torch.sum(mask).item()) / mask.shape[0])
+                    bn_count += 1
+                    continue
                 bn_count += 1
-                continue
-            bn_count += 1
     return layer_ratio
 
 def regrow_allocation(model, delta_sparsity, layer_ratio_down):
@@ -192,26 +208,27 @@ def regrow_allocation(model, delta_sparsity, layer_ratio_down):
     idx = 0
     layer_ratio = []
     for m in model:
-        if isinstance(m, nn.BatchNorm2d):
-            out_channel = m.weight.data.shape[0]
-            if bn_count in l1 + l2 + skip:
-                num_remain = out_channel*(1-layer_ratio_down[idx])
-                num_regrow = int(delta_sparsity * out_channel)
-                num_prune = out_channel - num_remain - num_regrow
-                if num_prune <= 0:
-                    num_prune = 0
-                layer_ratio.append(num_prune / out_channel)
-                idx += 1
+        if str(m) == 'FeatureConcat()' or 'FeatureConcat_l()':
+            continue
+        for m_ in m:
+            if isinstance(m_, nn.BatchNorm2d):
+                out_channel = m_.weight.data.shape[0]
+                if bn_count in l1 + l2 + skip:
+                    num_remain = out_channel*(1-layer_ratio_down[idx])
+                    num_regrow = int(delta_sparsity * out_channel)
+                    num_prune = out_channel - num_remain - num_regrow
+                    if num_prune <= 0:
+                        num_prune = 0
+                    layer_ratio.append(num_prune / out_channel)
+                    idx += 1
+                    bn_count += 1
+                    continue
                 bn_count += 1
-                continue
-            bn_count += 1
     return layer_ratio
 
 def init_mask(model, ratio):
-    
     model = model.feature_extractor   
     # print(model)
-
     prev_model = deepcopy(model)
     l1 = [2,6,9, 12,16,19,22, 25,29,32,35,38,41, 44,48,51]
     l2 = (np.asarray(l1)+1).tolist()
@@ -220,7 +237,7 @@ def init_mask(model, ratio):
     layer_id = 1
     cfg_mask = []
     for m in model:
-        if str(m) == 'WeightedFeatureFusion()' or 'FeatureConcat()':
+        if str(m) == 'FeatureConcat()' or 'FeatureConcat_l()':
             continue
         for m_ in m:
             if isinstance(m_, nn.Conv2d):
@@ -248,87 +265,90 @@ def update_mask(model, layer_ratio_up, layer_ratio_down, old_model, Rank_):
     idx = 0
     cfg_mask = []
     for [m, m0] in zip(model, old_model):
-        if isinstance(m, nn.Conv2d):
-            out_channels = m.weight.data.shape[0]
-            if layer_id in l1:
-                num_keep = int(out_channels*(1-layer_ratio_down[idx]))
-                num_free = int(out_channels*(1-layer_ratio_up[idx])) - num_keep
-                rank = Rank_[idx]
-                selected = rank[::-1][:num_keep]
-                freedom = rank[::-1][num_keep:]
-                grow = np.random.permutation(freedom)[:num_free]
-                mask = torch.zeros(out_channels)
-                mask[selected.tolist() + grow.tolist()] = 1
-                cfg_mask.append(mask)
-                
-                # most recently used weights copy
-                copy_idx = np.where(L1_norm(m) == 0)[0]
-                w = m0.weight.data[copy_idx.tolist(), :, :, :].clone()
-                m.weight.data[copy_idx.tolist(),:,:,:] = w.clone()
-                
-                layer_id += 1
-                idx += 1
-                continue
-            if layer_id in l2:
-                num_keep = int(out_channels*(1-layer_ratio_down[idx]))
-                num_free = int(out_channels*(1-layer_ratio_up[idx])) - num_keep
-                rank = Rank_[idx]
-                selected = rank[::-1][:num_keep]
-                freedom = rank[::-1][num_keep:]
-                grow = np.random.permutation(freedom)[:num_free]
-                mask = torch.zeros(out_channels)
-                mask[selected.tolist() + grow.tolist()] = 1
-                cfg_mask.append(mask)
-                
-                # most recently used weights copy
-                prev_copy_idx = deepcopy(copy_idx)
-                copy_idx = np.where(L1_norm(m) == 0)[0]
-                w = m0.weight.data[:,prev_copy_idx.tolist(),:,:].clone()
-                m.weight.data[:,prev_copy_idx.tolist(),:,:] = w.clone()
-                w = m0.weight.data[copy_idx.tolist(),:,:,:].clone()
-                m.weight.data[copy_idx.tolist(),:,:,:] = w.clone()
+        if str(m) == 'FeatureConcat()' or 'FeatureConcat_l()':
+            continue
+        for m_ in m:
+            if isinstance(m, nn.Conv2d):
+                out_channels = m.weight.data.shape[0]
+                if layer_id in l1:
+                    num_keep = int(out_channels*(1-layer_ratio_down[idx]))
+                    num_free = int(out_channels*(1-layer_ratio_up[idx])) - num_keep
+                    rank = Rank_[idx]
+                    selected = rank[::-1][:num_keep]
+                    freedom = rank[::-1][num_keep:]
+                    grow = np.random.permutation(freedom)[:num_free]
+                    mask = torch.zeros(out_channels)
+                    mask[selected.tolist() + grow.tolist()] = 1
+                    cfg_mask.append(mask)
+                    
+                    # most recently used weights copy
+                    copy_idx = np.where(L1_norm(m) == 0)[0]
+                    w = m0.weight.data[copy_idx.tolist(), :, :, :].clone()
+                    m.weight.data[copy_idx.tolist(),:,:,:] = w.clone()
+                    
+                    layer_id += 1
+                    idx += 1
+                    continue
+                if layer_id in l2:
+                    num_keep = int(out_channels*(1-layer_ratio_down[idx]))
+                    num_free = int(out_channels*(1-layer_ratio_up[idx])) - num_keep
+                    rank = Rank_[idx]
+                    selected = rank[::-1][:num_keep]
+                    freedom = rank[::-1][num_keep:]
+                    grow = np.random.permutation(freedom)[:num_free]
+                    mask = torch.zeros(out_channels)
+                    mask[selected.tolist() + grow.tolist()] = 1
+                    cfg_mask.append(mask)
+                    
+                    # most recently used weights copy
+                    prev_copy_idx = deepcopy(copy_idx)
+                    copy_idx = np.where(L1_norm(m) == 0)[0]
+                    w = m0.weight.data[:,prev_copy_idx.tolist(),:,:].clone()
+                    m.weight.data[:,prev_copy_idx.tolist(),:,:] = w.clone()
+                    w = m0.weight.data[copy_idx.tolist(),:,:,:].clone()
+                    m.weight.data[copy_idx.tolist(),:,:,:] = w.clone()
 
+                    layer_id += 1
+                    idx += 1
+                    continue
+                if layer_id in l3:
+                    # most recently used weights copy
+                    w = m0.weight.data[:,copy_idx.tolist(),:,:].clone()
+                    m.weight.data[:,copy_idx.tolist(),:,:] = w.clone()
+                    
+                    layer_id += 1
+                    continue
+                if layer_id in skip:
+                    num_keep = int(out_channels*(1-layer_ratio_down[idx]))
+                    num_free = int(out_channels*(1-layer_ratio_up[idx])) - num_keep
+                    rank = Rank_[idx]
+                    selected = rank[::-1][:num_keep]
+                    freedom = rank[::-1][num_keep:]
+                    grow = np.random.permutation(freedom)[:num_free]
+                    mask = torch.zeros(out_channels)
+                    mask[selected.tolist() + grow.tolist()] = 1
+                    cfg_mask.append(mask)
+                    
+                    # most recently used weights copy
+                    copy_idx = np.where(L1_norm(m) == 0)[0]
+                    w = m0.weight.data[copy_idx.tolist(), :, :, :].clone()
+                    m.weight.data[copy_idx.tolist(),:,:,:] = w.clone()
+                    
+                    layer_id += 1
+                    idx += 1
+                    continue
                 layer_id += 1
-                idx += 1
-                continue
-            if layer_id in l3:
-                # most recently used weights copy
-                w = m0.weight.data[:,copy_idx.tolist(),:,:].clone()
-                m.weight.data[:,copy_idx.tolist(),:,:] = w.clone()
-                
-                layer_id += 1
-                continue
-            if layer_id in skip:
-                num_keep = int(out_channels*(1-layer_ratio_down[idx]))
-                num_free = int(out_channels*(1-layer_ratio_up[idx])) - num_keep
-                rank = Rank_[idx]
-                selected = rank[::-1][:num_keep]
-                freedom = rank[::-1][num_keep:]
-                grow = np.random.permutation(freedom)[:num_free]
-                mask = torch.zeros(out_channels)
-                mask[selected.tolist() + grow.tolist()] = 1
-                cfg_mask.append(mask)
-                
-                # most recently used weights copy
-                copy_idx = np.where(L1_norm(m) == 0)[0]
-                w = m0.weight.data[copy_idx.tolist(), :, :, :].clone()
-                m.weight.data[copy_idx.tolist(),:,:,:] = w.clone()
-                
-                layer_id += 1
-                idx += 1
-                continue
-            layer_id += 1
-        elif isinstance(m, nn.BatchNorm2d):
-            if layer_id-1 in l1 + l2 + skip:
-                w = m0.weight.data[copy_idx.tolist()].clone()
-                m.weight.data[copy_idx.tolist()] = w.clone()
-                b = m0.bias.data[copy_idx.tolist()].clone()
-                m.bias.data[copy_idx.tolist()] = b.clone()
-                rm = m0.running_mean[copy_idx.tolist()].clone()
-                m.running_mean[copy_idx.tolist()] = rm.clone()
-                rv = m0.running_var[copy_idx.tolist()].clone()
-                m.running_var[copy_idx.tolist()] = rv.clone()
-                continue
+            elif isinstance(m, nn.BatchNorm2d):
+                if layer_id-1 in l1 + l2 + skip:
+                    w = m0.weight.data[copy_idx.tolist()].clone()
+                    m.weight.data[copy_idx.tolist()] = w.clone()
+                    b = m0.bias.data[copy_idx.tolist()].clone()
+                    m.bias.data[copy_idx.tolist()] = b.clone()
+                    rm = m0.running_mean[copy_idx.tolist()].clone()
+                    m.running_mean[copy_idx.tolist()] = rm.clone()
+                    rv = m0.running_var[copy_idx.tolist()].clone()
+                    m.running_var[copy_idx.tolist()] = rv.clone()
+                    continue
     prev_model = deepcopy(model)
     return cfg_mask, prev_model
 
@@ -341,7 +361,7 @@ def apply_mask(model, cfg_mask):
     layer_id_in_cfg = 0
     conv_count = 1
     for m in model: #Difference model() with model
-        if str(m) == 'WeightedFeatureFusion()' or 'FeatureConcat()':
+        if str(m) == 'FeatureConcat()' or 'FeatureConcat_l()':
             continue
         for m_ in m:
             if isinstance(m_, nn.Conv2d):
@@ -357,7 +377,7 @@ def apply_mask(model, cfg_mask):
                     mask = mask.view(m_.weight.data.shape[0],1,1,1)
                     m_.weight.data.mul_(mask)
                     prev_mask = cfg_mask[layer_id_in_cfg-1].float().cuda()
-                    prev_mask = prev_mask.view(1,m.weight.data.shape[1],1,1)
+                    prev_mask = prev_mask.view(1,m_.weight.data.shape[1],1,1)
                     m_.weight.data.mul_(prev_mask)
                     layer_id_in_cfg += 1
                     conv_count += 1
