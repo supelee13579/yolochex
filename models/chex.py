@@ -147,8 +147,6 @@ def get_layer_ratio (model, sparsity):
     total = 0
     bn_count = 1
     for m in model:
-        if str(m) == 'FeatureConcat()' or 'FeatureConcat_l()':
-            continue
         print(m, bn_count, total)
         for m_ in m:
             if isinstance(m_, nn.BatchNorm2d):
@@ -268,8 +266,8 @@ def update_mask(model, layer_ratio_up, layer_ratio_down, old_model, Rank_):
         if str(m) == 'FeatureConcat()' or 'FeatureConcat_l()':
             continue
         for m_ in m:
-            if isinstance(m, nn.Conv2d):
-                out_channels = m.weight.data.shape[0]
+            if isinstance(m_, nn.Conv2d):
+                out_channels = m_.weight.data.shape[0]
                 if layer_id in l1:
                     num_keep = int(out_channels*(1-layer_ratio_down[idx]))
                     num_free = int(out_channels*(1-layer_ratio_up[idx])) - num_keep
@@ -282,9 +280,9 @@ def update_mask(model, layer_ratio_up, layer_ratio_down, old_model, Rank_):
                     cfg_mask.append(mask)
                     
                     # most recently used weights copy
-                    copy_idx = np.where(L1_norm(m) == 0)[0]
+                    copy_idx = np.where(L1_norm(m_) == 0)[0]
                     w = m0.weight.data[copy_idx.tolist(), :, :, :].clone()
-                    m.weight.data[copy_idx.tolist(),:,:,:] = w.clone()
+                    m_.weight.data[copy_idx.tolist(),:,:,:] = w.clone()
                     
                     layer_id += 1
                     idx += 1
@@ -302,11 +300,11 @@ def update_mask(model, layer_ratio_up, layer_ratio_down, old_model, Rank_):
                     
                     # most recently used weights copy
                     prev_copy_idx = deepcopy(copy_idx)
-                    copy_idx = np.where(L1_norm(m) == 0)[0]
+                    copy_idx = np.where(L1_norm(m_) == 0)[0]
                     w = m0.weight.data[:,prev_copy_idx.tolist(),:,:].clone()
-                    m.weight.data[:,prev_copy_idx.tolist(),:,:] = w.clone()
+                    m_.weight.data[:,prev_copy_idx.tolist(),:,:] = w.clone()
                     w = m0.weight.data[copy_idx.tolist(),:,:,:].clone()
-                    m.weight.data[copy_idx.tolist(),:,:,:] = w.clone()
+                    m_.weight.data[copy_idx.tolist(),:,:,:] = w.clone()
 
                     layer_id += 1
                     idx += 1
@@ -314,7 +312,7 @@ def update_mask(model, layer_ratio_up, layer_ratio_down, old_model, Rank_):
                 if layer_id in l3:
                     # most recently used weights copy
                     w = m0.weight.data[:,copy_idx.tolist(),:,:].clone()
-                    m.weight.data[:,copy_idx.tolist(),:,:] = w.clone()
+                    m_.weight.data[:,copy_idx.tolist(),:,:] = w.clone()
                     
                     layer_id += 1
                     continue
@@ -330,24 +328,24 @@ def update_mask(model, layer_ratio_up, layer_ratio_down, old_model, Rank_):
                     cfg_mask.append(mask)
                     
                     # most recently used weights copy
-                    copy_idx = np.where(L1_norm(m) == 0)[0]
+                    copy_idx = np.where(L1_norm(m_) == 0)[0]
                     w = m0.weight.data[copy_idx.tolist(), :, :, :].clone()
-                    m.weight.data[copy_idx.tolist(),:,:,:] = w.clone()
+                    m_.weight.data[copy_idx.tolist(),:,:,:] = w.clone()
                     
                     layer_id += 1
                     idx += 1
                     continue
                 layer_id += 1
-            elif isinstance(m, nn.BatchNorm2d):
+            elif isinstance(m_, nn.BatchNorm2d):
                 if layer_id-1 in l1 + l2 + skip:
                     w = m0.weight.data[copy_idx.tolist()].clone()
-                    m.weight.data[copy_idx.tolist()] = w.clone()
+                    m_.weight.data[copy_idx.tolist()] = w.clone()
                     b = m0.bias.data[copy_idx.tolist()].clone()
-                    m.bias.data[copy_idx.tolist()] = b.clone()
+                    m_.bias.data[copy_idx.tolist()] = b.clone()
                     rm = m0.running_mean[copy_idx.tolist()].clone()
-                    m.running_mean[copy_idx.tolist()] = rm.clone()
+                    m_.running_mean[copy_idx.tolist()] = rm.clone()
                     rv = m0.running_var[copy_idx.tolist()].clone()
-                    m.running_var[copy_idx.tolist()] = rv.clone()
+                    m_.running_var[copy_idx.tolist()] = rv.clone()
                     continue
     prev_model = deepcopy(model)
     return cfg_mask, prev_model

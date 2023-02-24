@@ -45,6 +45,23 @@ from utils.torch_utils import ModelEMA, select_device, intersect_dicts, torch_di
 # from apex.fp16_utils import *
 
 
+def generate_mean_std(opt):
+    mean_val = [0.485, 0.456, 0.406]
+    std_val = [0.229, 0.224, 0.225]
+    
+    mean = torch.tensor(mean_val).cuda()
+    std = torch.tensor(std_val).cuda()
+
+    view = [1, len(mean_val), 1, 1]
+  
+    mean = mean.view(*view)
+    std = std.view(*view)
+
+    if opt.amp:
+      mean = mean.half()
+      std = std.half()
+
+    return mean, std
 
 logger = logging.getLogger(__name__)
 
@@ -259,7 +276,7 @@ def train(hyp, opt, device, tb_writer=None, wandb=None):
          
         # update mask
         if opt.grow_prune:
-            print("GROWN PRUNING WORKiNG")
+            print("GROWN PRUNING WORKING")
             if epoch >= 1 and epoch <= opt.T_max and epoch % opt.delta_T == 0:
                 channel_ratio = opt.init_channel_ratio * (1 + cos(pi * (epoch) / (opt.T_max))) / 2
                 layer_ratio_down = get_layer_ratio(model, opt.channel_sparsity) # for prune
