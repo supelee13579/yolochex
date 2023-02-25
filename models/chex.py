@@ -1,4 +1,3 @@
-
 import os
 import time
 from argparse import ArgumentParser
@@ -8,6 +7,7 @@ import sys
 import torch
 import torch.nn as nn
 import torch.functional as F
+from torchsummary import summary
 
 from copy import deepcopy
 from math import cos, pi
@@ -127,7 +127,7 @@ def SI_pruning(model, data_loader, mean, std):
     rank = []
     for m in model:
         if str(m) == 'FeatureConcat()' or 'FeatureConcat_l()':
-            continue
+            pass
         for m_ in m:
             if isinstance(m, nn.Conv2d):
                 if layer_id in l1 + l2 + skip:
@@ -148,25 +148,27 @@ def get_layer_ratio (model, sparsity):
     bn_count = 1
     for m in model:
         if str(m) == 'FeatureConcat()' or 'FeatureConcat_l()':
-            continue
+            pass
         for m_ in m:
             if isinstance(m_, nn.BatchNorm2d):
                 print('^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^')
                 if bn_count in l1 + l2 + skip:
                     print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
                     total += m_.weight.data.shape[0]
-                    print(total)
+                    # print(total)
                     print('************************************************')
                     bn_count += 1
                     continue
                 bn_count += 1
+                print(bn_count)
+                print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
         bn = torch.zeros(total)
         index = 0
         bn_count = 1
         print('------------------------------------------')
     for m in model:
         if str(m) == 'FeatureConcat()' or 'FeatureConcat_l()':
-            continue
+            pass
         for m_ in m:
             if isinstance(m_, nn.BatchNorm2d):
                 if bn_count in l1 + l2 + skip:
@@ -178,25 +180,23 @@ def get_layer_ratio (model, sparsity):
                 bn_count += 1
         y, i = torch.sort(bn)
         thre_index = int(total * sparsity)
-    
-        print(thre_index)
-
         thre = y[thre_index]
         layer_ratio = []
         bn_count = 1
     for m in model:
         if str(m) == 'FeatureConcat()' or 'FeatureConcat_l()':
-            continue
-        if get_layer > 0:
-            for m_ in m:
-                if isinstance(m_, nn.BatchNorm2d):
-                    if bn_count in l1 + l2 + skip:
-                        weight_copy = m_.weight.data.abs().clone()
-                        mask = weight_copy.gt(thre).float().cuda()
-                        layer_ratio.append((mask.shape[0] - torch.sum(mask).item()) / mask.shape[0])
-                        bn_count += 1
-                        continue
+            pass
+        for m_ in m:
+            if isinstance(m_, nn.BatchNorm2d):
+                if bn_count in l1 + l2 + skip:
+                    weight_copy = m_.weight.data.abs().clone()
+                    mask = weight_copy.gt(thre).float().cuda()
+                    layer_ratio.append((mask.shape[0] - torch.sum(mask).item()) / mask.shape[0])
+                    print(layer_ratio)
+                    print('!!!!')
                     bn_count += 1
+                    continue
+                bn_count += 1
     return layer_ratio
 
 def regrow_allocation(model, delta_sparsity, layer_ratio_down):
@@ -210,7 +210,7 @@ def regrow_allocation(model, delta_sparsity, layer_ratio_down):
     layer_ratio = []
     for m in model:
         if str(m) == 'FeatureConcat()' or 'FeatureConcat_l()':
-            continue
+            pass
         for m_ in m:
             if isinstance(m_, nn.BatchNorm2d):
                 out_channel = m_.weight.data.shape[0]
@@ -229,7 +229,11 @@ def regrow_allocation(model, delta_sparsity, layer_ratio_down):
 
 def init_mask(model, ratio):
     model = model.feature_extractor   
+    
     # print(model)
+    # print("\n\n")
+    # summary(model, (3, 64, 64))
+
     prev_model = deepcopy(model)
     l1 = [2,6,9, 12,16,19,22, 25,29,32,35,38,41, 44,48,51]
     l2 = (np.asarray(l1)+1).tolist()
@@ -239,11 +243,15 @@ def init_mask(model, ratio):
     cfg_mask = []
     for m in model:
         if str(m) == 'FeatureConcat()' or 'FeatureConcat_l()':
-            continue
+            print("HERE")
+            pass
+        # print(str(m))
+        # print('----------------------------------------------')
         for m_ in m:
+            # print(str(m_))
+            # print("******************************************")
             if isinstance(m_, nn.Conv2d):
                 out_channels = m_.weight.data.shape[0]
-                print(out_channels,sep='\n')               
                 if layer_id in l1 + l2 + skip:
                     num_keep = int(out_channels * (1 - ratio))
                     rank = np.argsort(L1_norm(m_))
@@ -267,7 +275,7 @@ def update_mask(model, layer_ratio_up, layer_ratio_down, old_model, Rank_):
     cfg_mask = []
     for [m, m0] in zip(model, old_model):
         if str(m) == 'FeatureConcat()' or 'FeatureConcat_l()':
-            continue
+            pass
         for m_ in m:
             if isinstance(m_, nn.Conv2d):
                 out_channels = m_.weight.data.shape[0]
@@ -363,7 +371,7 @@ def apply_mask(model, cfg_mask):
     conv_count = 1
     for m in model: #Difference model() with model
         if str(m) == 'FeatureConcat()' or 'FeatureConcat_l()':
-            continue
+            pass
         for m_ in m:
             if isinstance(m_, nn.Conv2d):
                 if conv_count in l1:
@@ -425,7 +433,7 @@ def detect_channel_zero(model):
     conv_count = 1
     for m in model:
         if str(m) == 'WeightedFeatureFusion()' or 'FeatureConcat()':
-            continue
+            pass
         for m_ in m:
             if isinstance(m, nn.Conv2d):
                 if conv_count in l1 + l2 + skip:
