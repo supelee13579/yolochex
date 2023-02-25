@@ -148,7 +148,7 @@ def get_layer_ratio (model, sparsity):
     bn_count = 1
     for m in model:
         if str(m) == 'FeatureConcat()' or 'FeatureConcat_l()':
-            pass
+            continue
         for m_ in m:
             if isinstance(m_, nn.BatchNorm2d):
                 print('^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^')
