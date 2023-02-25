@@ -147,14 +147,16 @@ def get_layer_ratio (model, sparsity):
     total = 0
     bn_count = 1
     for m in model:
-        print(m, bn_count, total)
+        if str(m) == 'FeatureConcat()' or 'FeatureConcat_l()':
+            continue
         for m_ in m:
             if isinstance(m_, nn.BatchNorm2d):
                 print('^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^')
                 if bn_count in l1 + l2 + skip:
                     print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
                     total += m_.weight.data.shape[0]
-                    print('*************************************************')
+                    print(total)
+                    print('************************************************')
                     bn_count += 1
                     continue
                 bn_count += 1
@@ -185,15 +187,16 @@ def get_layer_ratio (model, sparsity):
     for m in model:
         if str(m) == 'FeatureConcat()' or 'FeatureConcat_l()':
             continue
-        for m_ in m:
-            if isinstance(m_, nn.BatchNorm2d):
-                if bn_count in l1 + l2 + skip:
-                    weight_copy = m_.weight.data.abs().clone()
-                    mask = weight_copy.gt(thre).float().cuda()
-                    layer_ratio.append((mask.shape[0] - torch.sum(mask).item()) / mask.shape[0])
+        if get_layer > 0:
+            for m_ in m:
+                if isinstance(m_, nn.BatchNorm2d):
+                    if bn_count in l1 + l2 + skip:
+                        weight_copy = m_.weight.data.abs().clone()
+                        mask = weight_copy.gt(thre).float().cuda()
+                        layer_ratio.append((mask.shape[0] - torch.sum(mask).item()) / mask.shape[0])
+                        bn_count += 1
+                        continue
                     bn_count += 1
-                    continue
-                bn_count += 1
     return layer_ratio
 
 def regrow_allocation(model, delta_sparsity, layer_ratio_down):

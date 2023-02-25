@@ -376,11 +376,12 @@ def train(hyp, opt, device, tb_writer=None, wandb=None):
                     wandb.log({"Mosaics": [wandb.Image(str(x), caption=x.name) for x in save_dir.glob('train*.jpg')]})
 
             # end batch ------------------------------------------------------------------------------------------------
-        if epoch == 1 or 2:
-            layer = nn.Conv2d(3, 32, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
-            print(layer)
-            for l in layer.parameters():
-                print(l)
+       
+       # if epoch == 1 or 2:
+       #     layer = nn.Conv2d(3, 32, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
+       #     print(layer)
+       #     for l in layer.parameters():
+       #         print(l)
         
         # end epoch ----------------------------------------------------------------------------------------------------
 
