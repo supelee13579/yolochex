@@ -5,6 +5,7 @@
 # gitignore template for Jupyter Notebooks
 # website: http://jupyter.org/
 data/
+runs/
 runs\train
 weight*/
 mutualinfo/
