@@ -9,7 +9,6 @@ import torch
 import yaml
 from tqdm import tqdm
 
-from utils.google_utils import attempt_load
 from utils.datasets import create_dataloader
 from utils.general import coco80_to_coco91_class, check_dataset, check_file, check_img_size, box_iou, \
     non_max_suppression, scale_coords, xyxy2xywh, xywh2xyxy, clip_coords, set_logging, increment_path
