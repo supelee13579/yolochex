@@ -16,7 +16,7 @@ import torch.optim as optim
 import torch.optim.lr_scheduler as lr_scheduler
 import torch.utils.data
 from torchsummary import summary
-
+from math import cos, pi
 import yaml
 from torch.cuda import amp
 from torch.nn.parallel import DistributedDataParallel as DDP
@@ -28,7 +28,6 @@ import test  # import test.py to get mAP after each epoch
 from models.models import *
 from models.chex import *
 
-from utils.autoanchor import check_anchors
 from utils.datasets import create_dataloader
 from utils.general import labels_to_class_weights, increment_path, labels_to_image_weights, init_seeds, \
     fitness, fitness_p, fitness_r, fitness_ap50, fitness_ap, fitness_f, strip_optimizer, get_latest_run,\
@@ -36,7 +35,7 @@ from utils.general import labels_to_class_weights, increment_path, labels_to_ima
 from utils.google_utils import attempt_download
 from utils.loss import compute_loss
 from utils.plots import plot_images, plot_labels, plot_results, plot_evolution
-from utils.torch_utils import ModelEMA, select_device, intersect_dicts, torch_distributed_zero_first
+from utils.torch_utils import ModelEMA, select_device,  torch_distributed_zero_first
 
 
 # from apex.parallel.LARC import LARC
@@ -283,7 +282,8 @@ def train(hyp, opt, device, tb_writer=None, wandb=None):
                 layer_ratio_up = regrow_allocation(model, channel_ratio, layer_ratio_down) # for grow
                 print('layer ratio up:', layer_ratio_up)
                 print('layer ratio down:', layer_ratio_down)
-                _, rank = SI_pruning(model, train_loader, mean, std)
+                mean , std = generate_mean_std(opt)
+                _, rank = SI_pruning(model, dataloader, mean, std)
                 cfg_mask, prev_model = update_mask(model, layer_ratio_up, layer_ratio_down, prev_model, rank)
                 apply_mask(model, cfg_mask)
                 print('apply updated mask | detect channel sparsity: {}'.format(detect_channel_zero(model)))

@@ -1,8 +1,6 @@
 import os
-import time
 from argparse import ArgumentParser
 import numpy as np
-import sys
 
 import torch
 import torch.nn as nn
@@ -10,8 +8,6 @@ import torch.functional as F
 from torchsummary import summary
 
 from copy import deepcopy
-from math import cos, pi
-
 
 def generate_mean_std(opt):
     mean_val = [0.485, 0.456, 0.406]
