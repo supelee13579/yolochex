@@ -10,11 +10,6 @@ from torchsummary import summary
 from copy import deepcopy
 
 
-def is_concat(m):
-    if str(m) == "FeatureConcat()" or "FeatureConcat_l()":
-        return True
-
-
 def generate_mean_std(opt):
     mean_val = [0.485, 0.456, 0.406]
     std_val = [0.229, 0.224, 0.225]
@@ -135,7 +130,7 @@ def SI_pruning(model, data_loader, mean, std):
     rank = []
     for m in model:
         if str(m) == "FeatureConcat()" or "FeatureConcat_l()":
-            pass
+            continue
         for m_ in m:
             if isinstance(m, nn.Conv2d):
                 if layer_id in l1 + l2 + skip:
@@ -158,14 +153,15 @@ def get_layer_ratio(model, sparsity):
     for m in model:
         print(f"m : {m} ")
         if is_concat(m):
+            print(is_concat(m))
             continue
         for m_ in m:
             if isinstance(m_, nn.BatchNorm2d):
                 print(f"m : {m} , m_ : {m_}")
-                if bn_count in l1 + l2 + skip:
+                if bn_count in l2 + l2 + skip:
                     print(f"m : {m} , m_ : {m_} , bn_count : {bn_count}")
                     total += m_.weight.data.shape[0]
-                    print(total)
+                    print(f'total : {total}')
                     bn_count += 1
                     continue
                 bn_count += 1
@@ -221,7 +217,7 @@ def regrow_allocation(model, delta_sparsity, layer_ratio_down):
     layer_ratio = []
     for m in model:
         if str(m) == "FeatureConcat()" or "FeatureConcat_l()":
-            pass
+            continue
         for m_ in m:
             if isinstance(m_, nn.BatchNorm2d):
                 out_channel = m_.weight.data.shape[0]
@@ -255,8 +251,8 @@ def init_mask(model, ratio):
     cfg_mask = []
     for m in model:
         if str(m) == "FeatureConcat()" or "FeatureConcat_l()":
-            print("HERE")
-            pass
+            # print("HERE")
+            continue
         # print(str(m))
         # print('----------------------------------------------')
         for m_ in m:
@@ -288,7 +284,7 @@ def update_mask(model, layer_ratio_up, layer_ratio_down, old_model, Rank_):
     cfg_mask = []
     for [m, m0] in zip(model, old_model):
         if str(m) == "FeatureConcat()" or "FeatureConcat_l()":
-            pass
+            continue
         for m_ in m:
             if isinstance(m_, nn.Conv2d):
                 out_channels = m_.weight.data.shape[0]
@@ -385,7 +381,7 @@ def apply_mask(model, cfg_mask):
     conv_count = 1
     for m in model:  # Difference model() with model
         if str(m) == "FeatureConcat()" or "FeatureConcat_l()":
-            pass
+            continue
         for m_ in m:
             if isinstance(m_, nn.Conv2d):
                 if conv_count in l1:
@@ -448,7 +444,7 @@ def detect_channel_zero(model):
     conv_count = 1
     for m in model:
         if str(m) == "WeightedFeatureFusion()" or "FeatureConcat()":
-            pass
+            continue
         for m_ in m:
             if isinstance(m, nn.Conv2d):
                 if conv_count in l1 + l2 + skip:
