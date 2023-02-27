@@ -10,6 +10,11 @@ from torchsummary import summary
 from copy import deepcopy
 
 
+def is_concat(m):
+    if str(m) == "FeatureConcat()" or "FeatureConcat_l()":
+        return True
+
+
 def generate_mean_std(opt):
     mean_val = [0.485, 0.456, 0.406]
     std_val = [0.229, 0.224, 0.225]
@@ -76,18 +81,12 @@ class SI(nn.Module):
         self.vars.append(nn.Parameter(sobel_2D_trans, requires_grad=False))
 
     def forward(self, x):
-        grad_x = F.conv2d(
-            x, self.vars[0], bias=None, stride=1, padding=1, dilation=1, groups=self.inp
-        )
-        grad_y = F.conv2d(
-            x, self.vars[1], bias=None, stride=1, padding=1, dilation=1, groups=self.inp
-        )
+        grad_x = F.conv2d(x, self.vars[0], bias=None, stride=1, padding=1, dilation=1, groups=self.inp)
+        grad_y = F.conv2d(x, self.vars[1], bias=None, stride=1, padding=1, dilation=1, groups=self.inp)
         value = torch.sqrt(grad_x**2 + grad_y**2)
         # value = 1/1.4142 * (torch.abs(grad_x) + torch.abs(grad_y))
         denom = value.shape[2] * value.shape[3]
-        out = (
-            torch.sum(value**2, dim=(2, 3)) / denom - (torch.sum(value, dim=(2, 3)) / denom) ** 2
-        )
+        out = torch.sum(value**2, dim=(2, 3)) / denom - (torch.sum(value, dim=(2, 3)) / denom) ** 2
         return out**0.5
 
 
@@ -157,25 +156,24 @@ def get_layer_ratio(model, sparsity):
     total = 0
     bn_count = 1
     for m in model:
-        if str(m) == "FeatureConcat()" or "FeatureConcat_l()":
+        print(f"m : {m} ")
+        if is_concat(m):
             continue
         for m_ in m:
             if isinstance(m_, nn.BatchNorm2d):
-                print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
+                print(f"m : {m} , m_ : {m_}")
                 if bn_count in l1 + l2 + skip:
-                    print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
+                    print(f"m : {m} , m_ : {m_} , bn_count : {bn_count}")
                     total += m_.weight.data.shape[0]
-                    # print(total)
-                    print("************************************************")
+                    print(total)
                     bn_count += 1
                     continue
                 bn_count += 1
-                print(bn_count)
-                print("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$")
+                print(f"m : {m} , m_ : {m_} , bn_count : {bn_count}")
         bn = torch.zeros(total)
         index = 0
         bn_count = 1
-        print("------------------------------------------")
+    print("completed first for_loop")
     for m in model:
         if str(m) == "FeatureConcat()" or "FeatureConcat_l()":
             pass
@@ -193,6 +191,7 @@ def get_layer_ratio(model, sparsity):
         thre = y[thre_index]
         layer_ratio = []
         bn_count = 1
+    print("completed second for_loop")
     for m in model:
         if str(m) == "FeatureConcat()" or "FeatureConcat_l()":
             pass
@@ -207,6 +206,7 @@ def get_layer_ratio(model, sparsity):
                     bn_count += 1
                     continue
                 bn_count += 1
+    print("completed third for_loop")
     return layer_ratio
 
 
@@ -472,12 +472,8 @@ def make_parser():
         required=True,
         help="path to test and training data files",
     )
-    parser.add_argument(
-        "--epochs", "-e", type=int, default=65, help="number of epochs for training"
-    )
-    parser.add_argument(
-        "--batch-size", "--bs", type=int, default=32, help="number of examples for each iteration"
-    )
+    parser.add_argument("--epochs", "-e", type=int, default=65, help="number of epochs for training")
+    parser.add_argument("--batch-size", "--bs", type=int, default=32, help="number of examples for each iteration")
     parser.add_argument(
         "--eval-batch-size",
         "--ebs",
@@ -487,12 +483,8 @@ def make_parser():
     )
     parser.add_argument("--no-cuda", action="store_true", help="use available GPUs")
     parser.add_argument("--seed", "-s", type=int, help="manually set random seed for torch")
-    parser.add_argument(
-        "--checkpoint", type=str, default=None, help="path to model checkpoint file"
-    )
-    parser.add_argument(
-        "--save", type=str, default=None, help="save model checkpoints in the specified directory"
-    )
+    parser.add_argument("--checkpoint", type=str, default=None, help="path to model checkpoint file")
+    parser.add_argument("--save", type=str, default=None, help="save model checkpoints in the specified directory")
     parser.add_argument(
         "--mode",
         type=str,
@@ -516,9 +508,7 @@ def make_parser():
 
     # Hyperparameters
     parser.add_argument("--learning-rate", "--lr", type=float, default=2.6e-3, help="learning rate")
-    parser.add_argument(
-        "--momentum", "-m", type=float, default=0.9, help="momentum argument for SGD optimizer"
-    )
+    parser.add_argument("--momentum", "-m", type=float, default=0.9, help="momentum argument for SGD optimizer")
     parser.add_argument(
         "--weight-decay",
         "--wd",
