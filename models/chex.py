@@ -129,7 +129,8 @@ def SI_pruning(model, data_loader, mean, std):
     score = []
     rank = []
     for m in model:
-        if str(m) == "FeatureConcat()" or "FeatureConcat_l()":
+        if str(m) == "FeatureConcat()" or str(m) == "FeatureConcat_l()" or \
+              str(m) == "MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)":
             continue
         for m_ in m:
             if isinstance(m, nn.Conv2d):
@@ -151,9 +152,8 @@ def get_layer_ratio(model, sparsity):
     total = 0
     bn_count = 1
     for m in model:
-        print(f"m : {m} ")
-        if is_concat(m):
-            print(is_concat(m))
+        if str(m) == "FeatureConcat()" or str(m) == "FeatureConcat_l()" or \
+              str(m) == "MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)":
             continue
         for m_ in m:
             if isinstance(m_, nn.BatchNorm2d):
@@ -171,8 +171,9 @@ def get_layer_ratio(model, sparsity):
         bn_count = 1
     print("completed first for_loop")
     for m in model:
-        if str(m) == "FeatureConcat()" or "FeatureConcat_l()":
-            pass
+        if str(m) == "FeatureConcat()" or str(m) == "FeatureConcat_l()" or \
+              str(m) == "MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)":
+            continue
         for m_ in m:
             if isinstance(m_, nn.BatchNorm2d):
                 if bn_count in l1 + l2 + skip:
@@ -189,8 +190,9 @@ def get_layer_ratio(model, sparsity):
         bn_count = 1
     print("completed second for_loop")
     for m in model:
-        if str(m) == "FeatureConcat()" or "FeatureConcat_l()":
-            pass
+        if str(m) == "FeatureConcat()" or str(m) == "FeatureConcat_l()" or \
+              str(m) == "MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)":
+            continue
         for m_ in m:
             if isinstance(m_, nn.BatchNorm2d):
                 if bn_count in l1 + l2 + skip:
@@ -216,7 +218,8 @@ def regrow_allocation(model, delta_sparsity, layer_ratio_down):
     idx = 0
     layer_ratio = []
     for m in model:
-        if str(m) == "FeatureConcat()" or "FeatureConcat_l()":
+        if str(m) == "FeatureConcat()" or str(m) == "FeatureConcat_l()" or \
+              str(m) == "MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)":
             continue
         for m_ in m:
             if isinstance(m_, nn.BatchNorm2d):
@@ -250,8 +253,8 @@ def init_mask(model, ratio):
     layer_id = 1
     cfg_mask = []
     for m in model:
-        if str(m) == "FeatureConcat()" or "FeatureConcat_l()":
-            # print("HERE")
+        if str(m) == "FeatureConcat()" or str(m) == "FeatureConcat_l()" or \
+              str(m) == "MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)":
             continue
         # print(str(m))
         # print('----------------------------------------------')
@@ -283,7 +286,8 @@ def update_mask(model, layer_ratio_up, layer_ratio_down, old_model, Rank_):
     idx = 0
     cfg_mask = []
     for [m, m0] in zip(model, old_model):
-        if str(m) == "FeatureConcat()" or "FeatureConcat_l()":
+        if str(m) == "FeatureConcat()" or str(m) == "FeatureConcat_l()" or \
+              str(m) == "MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)":
             continue
         for m_ in m:
             if isinstance(m_, nn.Conv2d):
@@ -380,7 +384,8 @@ def apply_mask(model, cfg_mask):
     layer_id_in_cfg = 0
     conv_count = 1
     for m in model:  # Difference model() with model
-        if str(m) == "FeatureConcat()" or "FeatureConcat_l()":
+        if str(m) == "FeatureConcat()" or str(m) == "FeatureConcat_l()" or \
+              str(m) == "MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)":
             continue
         for m_ in m:
             if isinstance(m_, nn.Conv2d):
@@ -443,7 +448,8 @@ def detect_channel_zero(model):
     total_c = 0
     conv_count = 1
     for m in model:
-        if str(m) == "WeightedFeatureFusion()" or "FeatureConcat()":
+        if str(m) == "FeatureConcat()" or str(m) == "FeatureConcat_l()" or \
+              str(m) == "MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)":
             continue
         for m_ in m:
             if isinstance(m, nn.Conv2d):

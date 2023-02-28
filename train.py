@@ -365,6 +365,9 @@ def train(hyp, opt, device, tb_writer=None, wandb=None):
 
     torch.save(model, wdir / "init.pt")
 
+    # print(model)
+    # summary(model, (3, 64, 64))
+    
     # initialize mask
     cfg_mask = None
 
