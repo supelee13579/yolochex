@@ -199,8 +199,8 @@ def get_layer_ratio(model, sparsity):
                     weight_copy = m_.weight.data.abs().clone()
                     mask = weight_copy.gt(thre).float().cuda()
                     layer_ratio.append((mask.shape[0] - torch.sum(mask).item()) / mask.shape[0])
-                    print(layer_ratio)
-                    print("!!!!")
+                    # print(layer_ratio)
+                    # print("!!!!")
                     bn_count += 1
                     continue
                 bn_count += 1
@@ -241,9 +241,7 @@ def regrow_allocation(model, delta_sparsity, layer_ratio_down):
 def init_mask(model, ratio):
     model = model.feature_extractor
 
-    # print(model)
-    # print("\n\n")
-    # summary(model, (3, 64, 64))
+    print(model)
 
     prev_model = deepcopy(model)
     l1 = [2, 6, 9, 12, 16, 19, 22, 25, 29, 32, 35, 38, 41, 44, 48, 51]
@@ -256,12 +254,9 @@ def init_mask(model, ratio):
         if str(m) == "FeatureConcat()" or str(m) == "FeatureConcat_l()" or \
               str(m) == "MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)":
             continue
-        # print(str(m))
-        # print('----------------------------------------------')
         for m_ in m:
-            # print(str(m_))
-            # print("******************************************")
             if isinstance(m_, nn.Conv2d):
+                print(f' m_.weight.data.shape : {m_.weight.data.shape}')
                 out_channels = m_.weight.data.shape[0]
                 if layer_id in l1 + l2 + skip:
                     num_keep = int(out_channels * (1 - ratio))
@@ -383,7 +378,7 @@ def apply_mask(model, cfg_mask):
     skip = [5, 15, 28, 47]
     layer_id_in_cfg = 0
     conv_count = 1
-    for m in model:  # Difference model() with model
+    for m in model:  
         if str(m) == "FeatureConcat()" or str(m) == "FeatureConcat_l()" or \
               str(m) == "MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)":
             continue
@@ -401,13 +396,19 @@ def apply_mask(model, cfg_mask):
                     mask = mask.view(m_.weight.data.shape[0], 1, 1, 1)
                     m_.weight.data.mul_(mask)
                     prev_mask = cfg_mask[layer_id_in_cfg - 1].float().cuda()
+                    # print(f'prev_mask : {prev_mask}')
                     prev_mask = prev_mask.view(1, m_.weight.data.shape[1], 1, 1)
+                    # print(f'prev_mask : {prev_mask}')
                     m_.weight.data.mul_(prev_mask)
+                    # print(f'm_.weight.data.mul_ : {m_.weight.data.mul_(prev_mask)}')
                     layer_id_in_cfg += 1
+                    # print(f'layer : {conv_count}')
                     conv_count += 1
                     continue
                 if conv_count in l3:
                     prev_mask = cfg_mask[layer_id_in_cfg - 1].float().cuda()
+                    print(f'cfg_mask_0 : {m_.weight.data.shape[0]}')
+                    print(f'cfg_mask_1 : {m_.weight.data.shape[1]}')
                     prev_mask = prev_mask.view(1, m_.weight.data.shape[1], 1, 1)
                     m_.weight.data.mul_(prev_mask)
                     conv_count += 1
