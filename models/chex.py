@@ -256,7 +256,7 @@ def init_mask(model, ratio):
             continue
         for m_ in m:
             if isinstance(m_, nn.Conv2d):
-                print(f' m_.weight.data.shape : {m_.weight.data.shape}')
+                print(f'm_.weight.data.shape : {m_.weight.data.shape}')
                 out_channels = m_.weight.data.shape[0]
                 if layer_id in l1 + l2 + skip:
                     num_keep = int(out_channels * (1 - ratio))
@@ -265,6 +265,7 @@ def init_mask(model, ratio):
                     mask = torch.zeros(out_channels)
                     mask[arg_max_rev.tolist()] = 1
                     cfg_mask.append(mask)
+                    # print(f'cfg_mask : {cfg_mask}')
                     layer_id += 1
                     continue
                 layer_id += 1
@@ -385,6 +386,8 @@ def apply_mask(model, cfg_mask):
         for m_ in m:
             if isinstance(m_, nn.Conv2d):
                 if conv_count in l1:
+                    print(f'conv_count_l1 : {conv_count}')
+                    print(f'm_ : {str(m_)}')                
                     mask = cfg_mask[layer_id_in_cfg].float().cuda()
                     mask = mask.view(m_.weight.data.shape[0], 1, 1, 1)
                     m_.weight.data.mul_(mask)
@@ -392,6 +395,8 @@ def apply_mask(model, cfg_mask):
                     conv_count += 1
                     continue
                 if conv_count in l2:
+                    print(f'conv_count_l2 : {conv_count}')
+                    print(f'm_ : {str(m_)}')                
                     mask = cfg_mask[layer_id_in_cfg].float().cuda()
                     mask = mask.view(m_.weight.data.shape[0], 1, 1, 1)
                     m_.weight.data.mul_(mask)
@@ -406,9 +411,9 @@ def apply_mask(model, cfg_mask):
                     conv_count += 1
                     continue
                 if conv_count in l3:
+                    print(f'conv_count_l3 : {conv_count}')
+                    print(f'm_ : {str(m_)}')                
                     prev_mask = cfg_mask[layer_id_in_cfg - 1].float().cuda()
-                    print(f'cfg_mask_0 : {m_.weight.data.shape[0]}')
-                    print(f'cfg_mask_1 : {m_.weight.data.shape[1]}')
                     prev_mask = prev_mask.view(1, m_.weight.data.shape[1], 1, 1)
                     m_.weight.data.mul_(prev_mask)
                     conv_count += 1
@@ -437,7 +442,6 @@ def apply_mask(model, cfg_mask):
                     m_.weight.data.mul_(mask)
                     m_.bias.data.mul_(mask)
                     continue
-
 
 def detect_channel_zero(model):
     model = model.feature_extractor

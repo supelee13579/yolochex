@@ -286,7 +286,10 @@ def create_modules(module_defs, img_size, cfg):
     routs_binary = [False] * (i + 1)
     for i in routs:
         routs_binary[i] = True
-    feature_extractor = nn.Sequential(*list(module_list.children())[:27])
+
+    import torchvision.models as models
+    resnet50 = models.resnet50(pretrained=True)
+    feature_extractor = nn.Sequential(*list(resnet50.children())[:7]) 
     return module_list, routs_binary, feature_extractor
 
 
@@ -782,3 +785,4 @@ def attempt_download(weights):
         ):  # weights exist and > 1MB
             os.system("rm " + weights)  # remove partial downloads
             raise Exception(msg)
+
