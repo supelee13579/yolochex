@@ -370,10 +370,14 @@ def train(hyp, opt, device, tb_writer=None, wandb=None):
     
     # initialize mask
     cfg_mask = None
+    
+    # model = model.feature_extractor
 
     if opt.grow_prune:
         cfg_mask, prev_model = init_mask(model, opt.channel_sparsity - opt.init_channel_ratio)
+        # print(cfg_mask)
         apply_mask(model, cfg_mask)
+        # print(model)
         print("apply init. mask | detect channel sparsity: {}".format(detect_channel_zero(model)))
 
     for epoch in range(

@@ -129,17 +129,17 @@ def SI_pruning(model, data_loader, mean, std):
     score = []
     rank = []
     for m in model:
-        if str(m) == "FeatureConcat()" or str(m) == "FeatureConcat_l()" or \
-              str(m) == "MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)":
-            continue
-        for m_ in m:
-            if isinstance(m, nn.Conv2d):
-                if layer_id in l1 + l2 + skip:
-                    score.append(full_score[layer_id - 1])
-                    rank.append(full_rank[layer_id - 1])
-                    layer_id += 1
-                    continue
+        # if str(m) == "FeatureConcat()" or str(m) == "FeatureConcat_l()" or \
+        #       str(m) == "MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)":
+        #     continue
+        # for m_ in m:
+        if isinstance(m, nn.Conv2d):
+            if layer_id in l1 + l2 + skip:
+                score.append(full_score[layer_id - 1])
+                rank.append(full_rank[layer_id - 1])
                 layer_id += 1
+                continue
+            layer_id += 1
     return score, rank
 
 
@@ -152,59 +152,59 @@ def get_layer_ratio(model, sparsity):
     total = 0
     bn_count = 1
     for m in model:
-        if str(m) == "FeatureConcat()" or str(m) == "FeatureConcat_l()" or \
-              str(m) == "MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)":
-            continue
-        for m_ in m:
-            if isinstance(m_, nn.BatchNorm2d):
-                print(f"m : {m} , m_ : {m_}")
-                if bn_count in l2 + l2 + skip:
-                    print(f"m : {m} , m_ : {m_} , bn_count : {bn_count}")
-                    total += m_.weight.data.shape[0]
-                    print(f'total : {total}')
-                    bn_count += 1
-                    continue
+        # if str(m) == "FeatureConcat()" or str(m) == "FeatureConcat_l()" or \
+        #       str(m) == "MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)":
+        #     continue
+        # for m_ in m:
+        if isinstance(m, nn.BatchNorm2d):
+            # print(f"m : {m} , m : {m}")
+            if bn_count in l2 + l2 + skip:
+                # print(f"m : {m} , m : {m} , bn_count : {bn_count}")
+                total += m.weight.data.shape[0]
+                # print(f'total : {total}')
                 bn_count += 1
-                print(f"m : {m} , m_ : {m_} , bn_count : {bn_count}")
+                continue
+            bn_count += 1
+            # print(f"m : {m} , m : {m} , bn_count : {bn_count}")
         bn = torch.zeros(total)
         index = 0
         bn_count = 1
-    print("completed first for_loop")
+    # print("completed first for_loop")
     for m in model:
-        if str(m) == "FeatureConcat()" or str(m) == "FeatureConcat_l()" or \
-              str(m) == "MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)":
-            continue
-        for m_ in m:
-            if isinstance(m_, nn.BatchNorm2d):
-                if bn_count in l1 + l2 + skip:
-                    size = m_.weight.data.shape[0]
-                    bn[index : (index + size)] = m_.weight.data.abs().clone()
-                    index += size
-                    bn_count += 1
-                    continue
+        # if str(m) == "FeatureConcat()" or str(m) == "FeatureConcat_l()" or \
+        #       str(m) == "MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)":
+        #     continue
+        # for m_ in m:
+        if isinstance(m, nn.BatchNorm2d):
+            if bn_count in l1 + l2 + skip:
+                size = m.weight.data.shape[0]
+                bn[index : (index + size)] = m.weight.data.abs().clone()
+                index += size
                 bn_count += 1
+                continue
+            bn_count += 1
         y, i = torch.sort(bn)
         thre_index = int(total * sparsity)
         thre = y[thre_index]
         layer_ratio = []
         bn_count = 1
-    print("completed second for_loop")
+    # print("completed second for_loop")
     for m in model:
-        if str(m) == "FeatureConcat()" or str(m) == "FeatureConcat_l()" or \
-              str(m) == "MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)":
-            continue
-        for m_ in m:
-            if isinstance(m_, nn.BatchNorm2d):
-                if bn_count in l1 + l2 + skip:
-                    weight_copy = m_.weight.data.abs().clone()
-                    mask = weight_copy.gt(thre).float().cuda()
-                    layer_ratio.append((mask.shape[0] - torch.sum(mask).item()) / mask.shape[0])
-                    # print(layer_ratio)
-                    # print("!!!!")
-                    bn_count += 1
-                    continue
+        # if str(m) == "FeatureConcat()" or str(m) == "FeatureConcat_l()" or \
+        #       str(m) == "MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)":
+        #     continue
+        # for m_ in m:
+        if isinstance(m, nn.BatchNorm2d):
+            if bn_count in l1 + l2 + skip:
+                weight_copy = m.weight.data.abs().clone()
+                mask = weight_copy.gt(thre).float().cuda()
+                layer_ratio.append((mask.shape[0] - torch.sum(mask).item()) / mask.shape[0])
+                # print(layer_ratio)
+                # print("!!!!")
                 bn_count += 1
-    print("completed third for_loop")
+                continue
+            bn_count += 1
+    # print("completed third for_loop")
     return layer_ratio
 
 
@@ -218,29 +218,29 @@ def regrow_allocation(model, delta_sparsity, layer_ratio_down):
     idx = 0
     layer_ratio = []
     for m in model:
-        if str(m) == "FeatureConcat()" or str(m) == "FeatureConcat_l()" or \
-              str(m) == "MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)":
-            continue
-        for m_ in m:
-            if isinstance(m_, nn.BatchNorm2d):
-                out_channel = m_.weight.data.shape[0]
-                if bn_count in l1 + l2 + skip:
-                    num_remain = out_channel * (1 - layer_ratio_down[idx])
-                    num_regrow = int(delta_sparsity * out_channel)
-                    num_prune = out_channel - num_remain - num_regrow
-                    if num_prune <= 0:
-                        num_prune = 0
-                    layer_ratio.append(num_prune / out_channel)
-                    idx += 1
-                    bn_count += 1
-                    continue
+        # if str(m) == "FeatureConcat()" or str(m) == "FeatureConcat_l()" or \
+        #       str(m) == "MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)":
+        #     continue
+        # for m_ in m:
+        if isinstance(m, nn.BatchNorm2d):
+            out_channel = m.weight.data.shape[0]
+            if bn_count in l1 + l2 + skip:
+                num_remain = out_channel * (1 - layer_ratio_down[idx])
+                num_regrow = int(delta_sparsity * out_channel)
+                num_prune = out_channel - num_remain - num_regrow
+                if num_prune <= 0:
+                    num_prune = 0
+                layer_ratio.append(num_prune / out_channel)
+                idx += 1
                 bn_count += 1
+                continue
+            bn_count += 1
     return layer_ratio
 
 
 def init_mask(model, ratio):
     model = model.feature_extractor
-
+    
     print(model)
 
     prev_model = deepcopy(model)
@@ -251,24 +251,25 @@ def init_mask(model, ratio):
     layer_id = 1
     cfg_mask = []
     for m in model:
-        if str(m) == "FeatureConcat()" or str(m) == "FeatureConcat_l()" or \
-              str(m) == "MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)":
-            continue
-        for m_ in m:
-            if isinstance(m_, nn.Conv2d):
-                print(f'm_.weight.data.shape : {m_.weight.data.shape}')
-                out_channels = m_.weight.data.shape[0]
-                if layer_id in l1 + l2 + skip:
-                    num_keep = int(out_channels * (1 - ratio))
-                    rank = np.argsort(L1_norm(m_))
-                    arg_max_rev = rank[::-1][:num_keep]
-                    mask = torch.zeros(out_channels)
-                    mask[arg_max_rev.tolist()] = 1
-                    cfg_mask.append(mask)
-                    # print(f'cfg_mask : {cfg_mask}')
-                    layer_id += 1
-                    continue
+        # if str(m) == "FeatureConcat()" or str(m) == "FeatureConcat_l()" or \
+        #       str(m) == "MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)":
+        #     continue
+        # for m_ in m:
+        # print(m)
+        if isinstance(m, nn.Conv2d):
+            # print(f'm.weight.data.shape : {m.weight.data.shape}')
+            out_channels = m.weight.data.shape[0]
+            if layer_id in l1 + l2 + skip:
+                num_keep = int(out_channels * (1 - ratio))
+                rank = np.argsort(L1_norm(m))
+                arg_max_rev = rank[::-1][:num_keep]
+                mask = torch.zeros(out_channels)
+                mask[arg_max_rev.tolist()] = 1
+                cfg_mask.append(mask)
+                # print(f'cfg_mask : {cfg_mask}')
                 layer_id += 1
+                continue
+            layer_id += 1
     return cfg_mask, prev_model
 
 
@@ -282,91 +283,91 @@ def update_mask(model, layer_ratio_up, layer_ratio_down, old_model, Rank_):
     idx = 0
     cfg_mask = []
     for [m, m0] in zip(model, old_model):
-        if str(m) == "FeatureConcat()" or str(m) == "FeatureConcat_l()" or \
-              str(m) == "MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)":
-            continue
-        for m_ in m:
-            if isinstance(m_, nn.Conv2d):
-                out_channels = m_.weight.data.shape[0]
-                if layer_id in l1:
-                    num_keep = int(out_channels * (1 - layer_ratio_down[idx]))
-                    num_free = int(out_channels * (1 - layer_ratio_up[idx])) - num_keep
-                    rank = Rank_[idx]
-                    selected = rank[::-1][:num_keep]
-                    freedom = rank[::-1][num_keep:]
-                    grow = np.random.permutation(freedom)[:num_free]
-                    mask = torch.zeros(out_channels)
-                    mask[selected.tolist() + grow.tolist()] = 1
-                    cfg_mask.append(mask)
+        # if str(m) == "FeatureConcat()" or str(m) == "FeatureConcat_l()" or \
+        #       str(m) == "MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)":
+        #     continue
+        # for m_ in m:
+        if isinstance(m, nn.Conv2d):
+            out_channels = m.weight.data.shape[0]
+            if layer_id in l1:
+                num_keep = int(out_channels * (1 - layer_ratio_down[idx]))
+                num_free = int(out_channels * (1 - layer_ratio_up[idx])) - num_keep
+                rank = Rank_[idx]
+                selected = rank[::-1][:num_keep]
+                freedom = rank[::-1][num_keep:]
+                grow = np.random.permutation(freedom)[:num_free]
+                mask = torch.zeros(out_channels)
+                mask[selected.tolist() + grow.tolist()] = 1
+                cfg_mask.append(mask)
 
-                    # most recently used weights copy
-                    copy_idx = np.where(L1_norm(m_) == 0)[0]
-                    w = m0.weight.data[copy_idx.tolist(), :, :, :].clone()
-                    m_.weight.data[copy_idx.tolist(), :, :, :] = w.clone()
+                # most recently used weights copy
+                copy_idx = np.where(L1_norm(m) == 0)[0]
+                w = m0.weight.data[copy_idx.tolist(), :, :, :].clone()
+                m.weight.data[copy_idx.tolist(), :, :, :] = w.clone()
 
-                    layer_id += 1
-                    idx += 1
-                    continue
-                if layer_id in l2:
-                    num_keep = int(out_channels * (1 - layer_ratio_down[idx]))
-                    num_free = int(out_channels * (1 - layer_ratio_up[idx])) - num_keep
-                    rank = Rank_[idx]
-                    selected = rank[::-1][:num_keep]
-                    freedom = rank[::-1][num_keep:]
-                    grow = np.random.permutation(freedom)[:num_free]
-                    mask = torch.zeros(out_channels)
-                    mask[selected.tolist() + grow.tolist()] = 1
-                    cfg_mask.append(mask)
-
-                    # most recently used weights copy
-                    prev_copy_idx = deepcopy(copy_idx)
-                    copy_idx = np.where(L1_norm(m_) == 0)[0]
-                    w = m0.weight.data[:, prev_copy_idx.tolist(), :, :].clone()
-                    m_.weight.data[:, prev_copy_idx.tolist(), :, :] = w.clone()
-                    w = m0.weight.data[copy_idx.tolist(), :, :, :].clone()
-                    m_.weight.data[copy_idx.tolist(), :, :, :] = w.clone()
-
-                    layer_id += 1
-                    idx += 1
-                    continue
-                if layer_id in l3:
-                    # most recently used weights copy
-                    w = m0.weight.data[:, copy_idx.tolist(), :, :].clone()
-                    m_.weight.data[:, copy_idx.tolist(), :, :] = w.clone()
-
-                    layer_id += 1
-                    continue
-                if layer_id in skip:
-                    num_keep = int(out_channels * (1 - layer_ratio_down[idx]))
-                    num_free = int(out_channels * (1 - layer_ratio_up[idx])) - num_keep
-                    rank = Rank_[idx]
-                    selected = rank[::-1][:num_keep]
-                    freedom = rank[::-1][num_keep:]
-                    grow = np.random.permutation(freedom)[:num_free]
-                    mask = torch.zeros(out_channels)
-                    mask[selected.tolist() + grow.tolist()] = 1
-                    cfg_mask.append(mask)
-
-                    # most recently used weights copy
-                    copy_idx = np.where(L1_norm(m_) == 0)[0]
-                    w = m0.weight.data[copy_idx.tolist(), :, :, :].clone()
-                    m_.weight.data[copy_idx.tolist(), :, :, :] = w.clone()
-
-                    layer_id += 1
-                    idx += 1
-                    continue
                 layer_id += 1
-            elif isinstance(m_, nn.BatchNorm2d):
-                if layer_id - 1 in l1 + l2 + skip:
-                    w = m0.weight.data[copy_idx.tolist()].clone()
-                    m_.weight.data[copy_idx.tolist()] = w.clone()
-                    b = m0.bias.data[copy_idx.tolist()].clone()
-                    m_.bias.data[copy_idx.tolist()] = b.clone()
-                    rm = m0.running_mean[copy_idx.tolist()].clone()
-                    m_.running_mean[copy_idx.tolist()] = rm.clone()
-                    rv = m0.running_var[copy_idx.tolist()].clone()
-                    m_.running_var[copy_idx.tolist()] = rv.clone()
-                    continue
+                idx += 1
+                continue
+            if layer_id in l2:
+                num_keep = int(out_channels * (1 - layer_ratio_down[idx]))
+                num_free = int(out_channels * (1 - layer_ratio_up[idx])) - num_keep
+                rank = Rank_[idx]
+                selected = rank[::-1][:num_keep]
+                freedom = rank[::-1][num_keep:]
+                grow = np.random.permutation(freedom)[:num_free]
+                mask = torch.zeros(out_channels)
+                mask[selected.tolist() + grow.tolist()] = 1
+                cfg_mask.append(mask)
+
+                # most recently used weights copy
+                prev_copy_idx = deepcopy(copy_idx)
+                copy_idx = np.where(L1_norm(m) == 0)[0]
+                w = m0.weight.data[:, prev_copy_idx.tolist(), :, :].clone()
+                m.weight.data[:, prev_copy_idx.tolist(), :, :] = w.clone()
+                w = m0.weight.data[copy_idx.tolist(), :, :, :].clone()
+                m.weight.data[copy_idx.tolist(), :, :, :] = w.clone()
+
+                layer_id += 1
+                idx += 1
+                continue
+            if layer_id in l3:
+                # most recently used weights copy
+                w = m0.weight.data[:, copy_idx.tolist(), :, :].clone()
+                m.weight.data[:, copy_idx.tolist(), :, :] = w.clone()
+
+                layer_id += 1
+                continue
+            if layer_id in skip:
+                num_keep = int(out_channels * (1 - layer_ratio_down[idx]))
+                num_free = int(out_channels * (1 - layer_ratio_up[idx])) - num_keep
+                rank = Rank_[idx]
+                selected = rank[::-1][:num_keep]
+                freedom = rank[::-1][num_keep:]
+                grow = np.random.permutation(freedom)[:num_free]
+                mask = torch.zeros(out_channels)
+                mask[selected.tolist() + grow.tolist()] = 1
+                cfg_mask.append(mask)
+
+                # most recently used weights copy
+                copy_idx = np.where(L1_norm(m) == 0)[0]
+                w = m0.weight.data[copy_idx.tolist(), :, :, :].clone()
+                m.weight.data[copy_idx.tolist(), :, :, :] = w.clone()
+
+                layer_id += 1
+                idx += 1
+                continue
+            layer_id += 1
+        elif isinstance(m, nn.BatchNorm2d):
+            if layer_id - 1 in l1 + l2 + skip:
+                w = m0.weight.data[copy_idx.tolist()].clone()
+                m_.weight.data[copy_idx.tolist()] = w.clone()
+                b = m0.bias.data[copy_idx.tolist()].clone()
+                m_.bias.data[copy_idx.tolist()] = b.clone()
+                rm = m0.running_mean[copy_idx.tolist()].clone()
+                m_.running_mean[copy_idx.tolist()] = rm.clone()
+                rv = m0.running_var[copy_idx.tolist()].clone()
+                m_.running_var[copy_idx.tolist()] = rv.clone()
+                continue
     prev_model = deepcopy(model)
     return cfg_mask, prev_model
 
@@ -380,68 +381,68 @@ def apply_mask(model, cfg_mask):
     layer_id_in_cfg = 0
     conv_count = 1
     for m in model:  
-        if str(m) == "FeatureConcat()" or str(m) == "FeatureConcat_l()" or \
-              str(m) == "MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)":
-            continue
-        for m_ in m:
-            if isinstance(m_, nn.Conv2d):
-                if conv_count in l1:
-                    print(f'conv_count_l1 : {conv_count}')
-                    print(f'm_ : {str(m_)}')                
-                    mask = cfg_mask[layer_id_in_cfg].float().cuda()
-                    mask = mask.view(m_.weight.data.shape[0], 1, 1, 1)
-                    m_.weight.data.mul_(mask)
-                    layer_id_in_cfg += 1
-                    conv_count += 1
-                    continue
-                if conv_count in l2:
-                    print(f'conv_count_l2 : {conv_count}')
-                    print(f'm_ : {str(m_)}')                
-                    mask = cfg_mask[layer_id_in_cfg].float().cuda()
-                    mask = mask.view(m_.weight.data.shape[0], 1, 1, 1)
-                    m_.weight.data.mul_(mask)
-                    prev_mask = cfg_mask[layer_id_in_cfg - 1].float().cuda()
-                    # print(f'prev_mask : {prev_mask}')
-                    prev_mask = prev_mask.view(1, m_.weight.data.shape[1], 1, 1)
-                    # print(f'prev_mask : {prev_mask}')
-                    m_.weight.data.mul_(prev_mask)
-                    # print(f'm_.weight.data.mul_ : {m_.weight.data.mul_(prev_mask)}')
-                    layer_id_in_cfg += 1
-                    # print(f'layer : {conv_count}')
-                    conv_count += 1
-                    continue
-                if conv_count in l3:
-                    print(f'conv_count_l3 : {conv_count}')
-                    print(f'm_ : {str(m_)}')                
-                    prev_mask = cfg_mask[layer_id_in_cfg - 1].float().cuda()
-                    prev_mask = prev_mask.view(1, m_.weight.data.shape[1], 1, 1)
-                    m_.weight.data.mul_(prev_mask)
-                    conv_count += 1
-                    continue
-                if conv_count in skip:
-                    mask = cfg_mask[layer_id_in_cfg].float().cuda()
-                    mask = mask.view(m_.weight.data.shape[0], 1, 1, 1)
-                    m_.weight.data.mul_(mask)
-                    layer_id_in_cfg += 1
-                    conv_count += 1
-                    continue
+        # if str(m) == "FeatureConcat()" or str(m) == "FeatureConcat_l()" or \
+        #       str(m) == "MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)":
+        #     continue
+        # for m_ in m:
+        if isinstance(m, nn.Conv2d):
+            if conv_count in l1:
+                # print(f'conv_count_l1 : {conv_count}')
+                # print(f'm : {str(m)}')                
+                mask = cfg_mask[layer_id_in_cfg].float().cuda()
+                mask = mask.view(m_.weight.data.shape[0], 1, 1, 1)
+                m_.weight.data.mul_(mask)
+                layer_id_in_cfg += 1
                 conv_count += 1
-            elif isinstance(m_, nn.BatchNorm2d):
-                if conv_count in l2:
-                    mask = cfg_mask[layer_id_in_cfg - 1].float().cuda()
-                    m_.weight.data.mul_(mask)
-                    m_.bias.data.mul_(mask)
-                    continue
-                if conv_count in l3:
-                    mask = cfg_mask[layer_id_in_cfg - 1].float().cuda()
-                    m_.weight.data.mul_(mask)
-                    m_.bias.data.mul_(mask)
-                    continue
-                if conv_count - 1 in skip:
-                    mask = cfg_mask[layer_id_in_cfg - 1].float().cuda()
-                    m_.weight.data.mul_(mask)
-                    m_.bias.data.mul_(mask)
-                    continue
+                continue
+            if conv_count in l2:
+                # print(f'conv_count_l2 : {conv_count}')
+                # print(f'm : {str(m)}')                
+                mask = cfg_mask[layer_id_in_cfg].float().cuda()
+                mask = mask.view(m.weight.data.shape[0], 1, 1, 1)
+                m.weight.data.mul_(mask)
+                prev_mask = cfg_mask[layer_id_in_cfg - 1].float().cuda()
+                # print(f'prev_mask : {prev_mask}')
+                prev_mask = prev_mask.view(1, m.weight.data.shape[1], 1, 1)
+                # print(f'prev_mask : {prev_mask}')
+                m.weight.data.mul_(prev_mask)
+                # print(f'm_.weight.data.mul_ : {m_.weight.data.mul_(prev_mask)}')
+                layer_id_in_cfg += 1
+                # print(f'layer : {conv_count}')
+                conv_count += 1
+                continue
+            if conv_count in l3:
+                # print(f'conv_count_l3 : {conv_count}')
+                # print(f'm : {str(m)}')                
+                prev_mask = cfg_mask[layer_id_in_cfg - 1].float().cuda()
+                prev_mask = prev_mask.view(1, m.weight.data.shape[1], 1, 1)
+                m.weight.data.mul_(prev_mask)
+                conv_count += 1
+                continue
+            if conv_count in skip:
+                mask = cfg_mask[layer_id_in_cfg].float().cuda()
+                mask = mask.view(m.weight.data.shape[0], 1, 1, 1)
+                m.weight.data.mul_(mask)
+                layer_id_in_cfg += 1
+                conv_count += 1
+                continue
+            conv_count += 1
+        elif isinstance(m, nn.BatchNorm2d):
+            if conv_count in l2:
+                mask = cfg_mask[layer_id_in_cfg - 1].float().cuda()
+                m.weight.data.mul_(mask)
+                m.bias.data.mul_(mask)
+                continue
+            if conv_count in l3:
+                mask = cfg_mask[layer_id_in_cfg - 1].float().cuda()
+                m.weight.data.mul_(mask)
+                m.bias.data.mul_(mask)
+                continue
+            if conv_count - 1 in skip:
+                mask = cfg_mask[layer_id_in_cfg - 1].float().cuda()
+                m.weight.data.mul_(mask)
+                m.bias.data.mul_(mask)
+                continue
 
 def detect_channel_zero(model):
     model = model.feature_extractor
@@ -453,19 +454,19 @@ def detect_channel_zero(model):
     total_c = 0
     conv_count = 1
     for m in model:
-        if str(m) == "FeatureConcat()" or str(m) == "FeatureConcat_l()" or \
-              str(m) == "MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)":
-            continue
-        for m_ in m:
-            if isinstance(m, nn.Conv2d):
-                if conv_count in l1 + l2 + skip:
-                    weight_copy = m_.weight.data.abs().clone().cpu().numpy()
-                    norm = np.sum(weight_copy, axis=(1, 2, 3))
-                    total_zero += len(np.where(norm == 0)[0])
-                    total_c += m_.weight.data.shape[0]
-                    conv_count += 1
-                    continue
+        # if str(m) == "FeatureConcat()" or str(m) == "FeatureConcat_l()" or \
+        #       str(m) == "MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)":
+        #     continue
+        # for m_ in m:
+        if isinstance(m, nn.Conv2d):
+            if conv_count in l1 + l2 + skip:
+                weight_copy = m.weight.data.abs().clone().cpu().numpy()
+                norm = np.sum(weight_copy, axis=(1, 2, 3))
+                total_zero += len(np.where(norm == 0)[0])
+                total_c += m.weight.data.shape[0]
                 conv_count += 1
+                continue
+            conv_count += 1
         return total_zero / total_c
 
 

@@ -2,6 +2,7 @@ from utils.google_utils import *
 from utils.layers import *
 from utils.parse_config import *
 from utils import torch_utils
+from utils.resnet import *
 
 ONNX_EXPORT = False
 
@@ -288,7 +289,9 @@ def create_modules(module_defs, img_size, cfg):
         routs_binary[i] = True
 
     import torchvision.models as models
+    
     resnet50 = models.resnet50(pretrained=True)
+    # net = ResNet50()
     feature_extractor = nn.Sequential(*list(resnet50.children())[:7]) 
     return module_list, routs_binary, feature_extractor
 
