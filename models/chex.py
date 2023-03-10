@@ -254,8 +254,6 @@ def init_mask(model, ratio):
         # if str(m) == "FeatureConcat()" or str(m) == "FeatureConcat_l()" or \
         #       str(m) == "MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)":
         #     continue
-        # for m_ in m:
-        # print(m)
         if isinstance(m, nn.Conv2d):
             # print(f'm.weight.data.shape : {m.weight.data.shape}')
             out_channels = m.weight.data.shape[0]
@@ -266,10 +264,43 @@ def init_mask(model, ratio):
                 mask = torch.zeros(out_channels)
                 mask[arg_max_rev.tolist()] = 1
                 cfg_mask.append(mask)
-                # print(f'cfg_mask : {cfg_mask}')
+                print(f'cfg_mask : {cfg_mask}')
                 layer_id += 1
                 continue
             layer_id += 1
+        elif isinstance(m, nn.Sequential):
+            for m_ in m:
+                if isinstance(m_.conv1, nn.Conv2d) or isinstance(m_.conv2, nn.Conv2d) or isinstance(m_.conv3, nn.Conv2d):
+                    if layer_id in l1 + l2 + skip:
+                        num_keep = int(out_channels * (1 - ratio))
+                        rank = np.argsort(L1_norm(m_))
+                        arg_max_rev = rank[::-1][:num_keep]
+                        mask = torch.zeros(out_channels)
+                        mask[arg_max_rev.tolist()] = 1
+                        cfg_mask.append(mask)
+                        print(f'cfg_mask : {cfg_mask}')
+                        layer_id += 1
+                        continue
+                    layer_id += 1
+                    # print(m_.conv1)
+                    # print(m_.conv2)
+                    # print(m_.conv3)
+                if m_.downsample is not None:
+                    for n in m_.downsample:
+                        if isinstance(n, nn.Conv2d):
+                            if layer_id in l1 + l2 + skip:
+                                num_keep = int(out_channels * (1 - ratio))
+                                rank = np.argsort(L1_norm(n))
+                                arg_max_rev = rank[::-1][:num_keep]
+                                mask = torch.zeros(out_channels)
+                                mask[arg_max_rev.tolist()] = 1
+                                cfg_mask.append(mask)
+                                print(f'cfg_mask : {cfg_mask}')
+                                layer_id += 1
+                                continue
+                            layer_id += 1
+               #             print(n)
+               # print()
     return cfg_mask, prev_model
 
 
