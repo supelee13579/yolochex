@@ -241,7 +241,7 @@ def regrow_allocation(model, delta_sparsity, layer_ratio_down):
 def init_mask(model, ratio):
     model = model.feature_extractor
     
-    print(model)
+    # print(model)
 
     prev_model = deepcopy(model)
     l1 = [2, 6, 9, 12, 16, 19, 22, 25, 29, 32, 35, 38, 41, 44, 48, 51]
@@ -250,14 +250,17 @@ def init_mask(model, ratio):
     skip = [5, 15, 28, 47]
     layer_id = 1
     cfg_mask = []
+    m_ = None
     for m in model:
         # if str(m) == "FeatureConcat()" or str(m) == "FeatureConcat_l()" or \
         #       str(m) == "MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)":
         #     continue
         if isinstance(m, nn.Conv2d):
+            # print(m)
             # print(f'm.weight.data.shape : {m.weight.data.shape}')
             out_channels = m.weight.data.shape[0]
             if layer_id in l1 + l2 + skip:
+                print('ture')
                 num_keep = int(out_channels * (1 - ratio))
                 rank = np.argsort(L1_norm(m))
                 arg_max_rev = rank[::-1][:num_keep]
@@ -268,10 +271,11 @@ def init_mask(model, ratio):
                 layer_id += 1
                 continue
             layer_id += 1
-        elif isinstance(m, nn.Sequential):
+        elif isinstance(m_, nn.Sequential):
             for m_ in m:
                 if isinstance(m_.conv1, nn.Conv2d) or isinstance(m_.conv2, nn.Conv2d) or isinstance(m_.conv3, nn.Conv2d):
                     if layer_id in l1 + l2 + skip:
+                        print(m_)
                         num_keep = int(out_channels * (1 - ratio))
                         rank = np.argsort(L1_norm(m_))
                         arg_max_rev = rank[::-1][:num_keep]
@@ -391,13 +395,13 @@ def update_mask(model, layer_ratio_up, layer_ratio_down, old_model, Rank_):
         elif isinstance(m, nn.BatchNorm2d):
             if layer_id - 1 in l1 + l2 + skip:
                 w = m0.weight.data[copy_idx.tolist()].clone()
-                m_.weight.data[copy_idx.tolist()] = w.clone()
+                m.weight.data[copy_idx.tolist()] = w.clone()
                 b = m0.bias.data[copy_idx.tolist()].clone()
-                m_.bias.data[copy_idx.tolist()] = b.clone()
+                m.bias.data[copy_idx.tolist()] = b.clone()
                 rm = m0.running_mean[copy_idx.tolist()].clone()
-                m_.running_mean[copy_idx.tolist()] = rm.clone()
+                m.running_mean[copy_idx.tolist()] = rm.clone()
                 rv = m0.running_var[copy_idx.tolist()].clone()
-                m_.running_var[copy_idx.tolist()] = rv.clone()
+                m.running_var[copy_idx.tolist()] = rv.clone()
                 continue
     prev_model = deepcopy(model)
     return cfg_mask, prev_model
